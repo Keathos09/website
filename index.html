@@ -3418,42 +3418,54 @@ function toggleMenu() {
 
     <!-- ══ ASSIGN DOCTOR ══ -->
     <div class="admin-panel" id="panel-adddoc">
-      <div class="admin-card" style="max-width:580px;margin-bottom:20px;">
-        <div class="admin-card-title">Assign Doctor to a Day</div>
+      <div class="admin-card" style="max-width:620px;">
+        <div class="admin-card-title">Assign Doctor &amp; Set Hours</div>
+
+        <!-- Doctor assignment -->
         <div class="admin-form-grid">
-          <div class="admin-form-group"><label>Doctor's Name</label><input type="text" id="dName" placeholder="Dr. Williams"></div>
+          <div class="admin-form-group"><label>Doctor's Name <span style="font-weight:300;color:var(--mid);">(optional)</span></label><input type="text" id="dName" placeholder="Dr. Williams"></div>
           <div class="admin-form-group"><label>Branch</label>
             <select id="dBranch"><option value="sheraton">Sheraton Mall</option><option value="cave">Cave Shepherd</option></select>
           </div>
           <div class="admin-form-group"><label>Date</label><input type="date" id="dDate"></div>
           <div class="admin-form-group"><label>Specialty / Note (optional)</label><input type="text" id="dNote" placeholder="e.g. Optometrist"></div>
         </div>
-        <div style="margin-top:24px;">
+
+        <!-- No doctor / closed day toggle -->
+        <div style="margin-top:16px;padding:14px 16px;background:var(--cream);border-radius:10px;border:1px solid var(--border);display:flex;align-items:center;gap:12px;">
+          <input type="checkbox" id="dClosed" style="width:16px;height:16px;accent-color:var(--orange);cursor:pointer;" onchange="toggleClosedDay()">
+          <label for="dClosed" style="font-size:13px;color:var(--charcoal);cursor:pointer;">
+            <strong>No appointments this day</strong> — mark as closed for the selected branch &amp; date. Clients will not be able to book.
+          </label>
+        </div>
+
+        <div style="margin-top:20px;padding-bottom:20px;border-bottom:1px solid var(--border);">
           <button class="admin-btn" onclick="adminAddDoctor()">Save</button>
           <span id="adminDoctorMsg" style="margin-left:16px;font-size:13px;color:var(--orange);display:none;"></span>
         </div>
-      </div>
 
-      <div class="admin-card" style="max-width:580px;">
-        <div class="admin-card-title">Appointment Time Overrides</div>
-        <p style="font-size:13px;color:var(--mid);margin-bottom:20px;">Override the first and last appointment slot for a specific branch and date — useful when the doctor arrives late or leaves early.</p>
-        <div class="admin-form-grid">
-          <div class="admin-form-group"><label>Branch</label>
-            <select id="ovBranch" onchange="updateOverrideDefaults()">
-              <option value="sheraton">Sheraton Mall</option>
-              <option value="cave">Cave Shepherd</option>
-            </select>
+        <!-- Time overrides -->
+        <div style="margin-top:20px;" id="ovSection">
+          <div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--orange);font-weight:500;margin-bottom:6px;">Appointment Hours Override</div>
+          <p style="font-size:13px;color:var(--mid);margin-bottom:16px;">Adjust the first and last slot for a specific branch and date — useful when the doctor starts late or leaves early.</p>
+          <div class="admin-form-grid">
+            <div class="admin-form-group"><label>Branch</label>
+              <select id="ovBranch" onchange="updateOverrideDefaults()">
+                <option value="sheraton">Sheraton Mall</option>
+                <option value="cave">Cave Shepherd</option>
+              </select>
+            </div>
+            <div class="admin-form-group"><label>Date</label><input type="date" id="ovDate" onchange="updateOverrideDefaults()"></div>
+            <div class="admin-form-group"><label>First Slot</label><input type="time" id="ovStart" step="1800"></div>
+            <div class="admin-form-group"><label>Last Slot</label><input type="time" id="ovEnd" step="1800"></div>
           </div>
-          <div class="admin-form-group"><label>Date</label><input type="date" id="ovDate" onchange="updateOverrideDefaults()"></div>
-          <div class="admin-form-group"><label>First Slot</label><input type="time" id="ovStart" step="1800"></div>
-          <div class="admin-form-group"><label>Last Slot</label><input type="time" id="ovEnd" step="1800"></div>
+          <div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <button class="admin-btn" onclick="saveOverride()">Save Hours</button>
+            <button class="admin-btn admin-btn-sm admin-btn-danger" onclick="clearOverride()">Clear Override</button>
+            <span id="ovMsg" style="font-size:13px;color:var(--orange);display:none;"></span>
+          </div>
+          <div id="ovCurrentList" style="margin-top:20px;"></div>
         </div>
-        <div style="margin-top:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-          <button class="admin-btn" onclick="saveOverride()">Save Override</button>
-          <button class="admin-btn admin-btn-sm admin-btn-danger" onclick="clearOverride()">Clear Override</button>
-          <span id="ovMsg" style="font-size:13px;color:var(--orange);display:none;"></span>
-        </div>
-        <div id="ovCurrentList" style="margin-top:20px;"></div>
       </div>
     </div>
 
@@ -3632,8 +3644,10 @@ function renderCal(){
     const el=document.createElement('div'); el.className='cal-day'; el.textContent=d;
     const ds=dateKey(bk.year,bk.month,d);
     const dow=new Date(bk.year,bk.month,d).getDay();
+    const closedDays=loadData('eo_closed',[]);
     if(ds<ts){el.classList.add('cal-past');}
     else if(dow===0){el.classList.add('cal-past');el.title='Closed Sundays';}
+    else if(closedDays.includes(bk.branch+'|'+ds)){el.classList.add('cal-full');el.title='No appointments available this day';}
     else{
       const ds2=dateKey(bk.year,bk.month,d);
     const slots=generateSlots(bk.branch,ds2);
@@ -3802,11 +3816,24 @@ function renderAdminCal(){
     const dow=new Date(adminCal.year,adminCal.month,d).getDay();
     const cell=document.createElement('div');
     cell.className='admin-cal-cell';
+    const closedDays=loadData('eo_closed',[]);
+    const isClosed=branch==='all'
+      ? closedDays.some(k=>k.endsWith('|'+ds))
+      : closedDays.includes(branch+'|'+ds);
     if(ds<ts||dow===0)cell.classList.add('past-cell');
+    if(isClosed)cell.style.background='#fdf0f0';
     if(ds===ts)cell.classList.add('today-cell');
     if(ds===adminCal.selectedDate)cell.classList.add('selected-cell');
     if(dow===0){cell.style.cursor='default';cell.title='Closed Sundays';}
     else cell.onclick=()=>selectAdminDay(ds);
+
+    // Closed badge
+    if(isClosed){
+      const badge=document.createElement('div');
+      badge.style.cssText='font-size:9px;color:#c00;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:3px;';
+      badge.textContent='CLOSED';
+      cell.appendChild(badge);
+    }
 
     // Day number
     const num=document.createElement('div');
@@ -3875,6 +3902,14 @@ function renderDayDetail(ds){
   document.getElementById('adminDayDetail').scrollIntoView({behavior:'smooth',block:'nearest'});
 
   const list=document.getElementById('dayDetailList');
+  const closedDays=loadData('eo_closed',[]);
+  const isClosed=branch==='all'
+    ? closedDays.some(k=>k.endsWith('|'+ds))
+    : closedDays.includes(branch+'|'+ds);
+  if(isClosed){
+    list.innerHTML='<div style="padding:24px;color:#c00;font-size:13px;font-weight:500;">🚫 This day is marked as closed — no appointments are available to customers.</div>';
+    return;
+  }
   if(appts.length===0){
     list.innerHTML='<div class="appt-empty" style="display:block;padding:32px;">No appointments on this day.</div>';
     return;
@@ -4178,26 +4213,60 @@ function renderRoster(){
   });
 }
 
+function toggleClosedDay(){
+  const closed=document.getElementById('dClosed').checked;
+  // Grey out the doctor fields if marking closed
+  ['dName','dNote'].forEach(id=>{
+    document.getElementById(id).disabled=closed;
+    document.getElementById(id).style.opacity=closed?'0.4':'1';
+  });
+  document.getElementById('ovSection').style.opacity=closed?'0.4':'1';
+  document.getElementById('ovSection').style.pointerEvents=closed?'none':'auto';
+}
+
 function adminAddDoctor(){
-  const name=  document.getElementById('dName').value.trim();
   const branch=document.getElementById('dBranch').value;
   const date=  document.getElementById('dDate').value;
-  const note=  document.getElementById('dNote').value.trim();
-  if(!name||!date){alert('Please enter the doctor name and date.');return;}
-  const doctors=loadData('eo_doctors',[]);
-  // Check if same doctor is already assigned to the OTHER branch on the same date
-  const otherBranch=branch==='sheraton'?'cave':'sheraton';
-  const otherBranchLabel=otherBranch==='sheraton'?'Sheraton Mall':'Cave Shepherd';
-  const clash=doctors.find(d=>d.date===date&&d.branch===otherBranch&&d.name.toLowerCase()===name.toLowerCase());
-  if(clash){
-    if(!confirm(`⚠️ ${name} is already assigned to ${otherBranchLabel} on this date. Are you sure you want to assign them to both branches?`))return;
+  const closed=document.getElementById('dClosed').checked;
+  if(!date){alert('Please select a date.');return;}
+
+  // Handle closed day
+  const closedDays=loadData('eo_closed',[]);
+  const closedKey=branch+'|'+date;
+  if(closed){
+    if(!closedDays.includes(closedKey))closedDays.push(closedKey);
+    saveData('eo_closed',closedDays);
+    // Remove any doctor assigned that day
+    saveData('eo_doctors',loadData('eo_doctors',[]).filter(d=>!(d.branch===branch&&d.date===date)));
+    const msg=document.getElementById('adminDoctorMsg');
+    msg.textContent='✓ Marked as closed — no appointments available.'; msg.style.display='inline';
+    setTimeout(()=>msg.style.display='none',3000);
+    renderRoster(); renderAdminCal(); return;
   }
-  const i=doctors.findIndex(d=>d.branch===branch&&d.date===date);
-  if(i>=0)doctors[i]={name,branch,date,note};
-  else doctors.push({name,branch,date,note});
-  saveData('eo_doctors',doctors);
+
+  // Remove from closed list if unchecked
+  saveData('eo_closed',closedDays.filter(k=>k!==closedKey));
+
+  const name=document.getElementById('dName').value.trim();
+  const note=document.getElementById('dNote').value.trim();
+
+  // Doctor is optional — only save if name provided
+  if(name){
+    const otherBranch=branch==='sheraton'?'cave':'sheraton';
+    const otherLabel=otherBranch==='sheraton'?'Sheraton Mall':'Cave Shepherd';
+    const doctors=loadData('eo_doctors',[]);
+    const clash=doctors.find(d=>d.date===date&&d.branch===otherBranch&&d.name.toLowerCase()===name.toLowerCase());
+    if(clash){
+      if(!confirm(`⚠️ ${name} is already assigned to ${otherLabel} on this date. Assign to both branches?`))return;
+    }
+    const i=doctors.findIndex(d=>d.branch===branch&&d.date===date);
+    if(i>=0)doctors[i]={name,branch,date,note};
+    else doctors.push({name,branch,date,note});
+    saveData('eo_doctors',doctors);
+  }
+
   const msg=document.getElementById('adminDoctorMsg');
-  msg.textContent='✓ Saved!'; msg.style.display='inline';
+  msg.textContent=name?'✓ Saved!':'✓ Day saved — no doctor assigned.'; msg.style.display='inline';
   setTimeout(()=>msg.style.display='none',2500);
   renderRoster(); renderAdminCal();
 }
