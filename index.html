@@ -4023,6 +4023,7 @@ function runPatientSearch(){
         <div style="display:flex;gap:8px;">
           <button class="admin-btn admin-btn-sm" onclick="event.stopPropagation();openPatientModal('${p.phone}')">View / Edit Notes</button>
           <button class="admin-btn admin-btn-sm" onclick="event.stopPropagation();prefillQuickBook('${p.phone}')">Book Again</button>
+          <button class="admin-btn admin-btn-sm admin-btn-danger" onclick="event.stopPropagation();deletePatient('${p.phone}')">Delete</button>
         </div>
       </div>
       ${histHtml}`;
@@ -4055,6 +4056,16 @@ function fillFromPatient(phone){
   document.getElementById('aEmail').value=p.email||'';
   document.getElementById('patientTypeahead').value=`${p.first} ${p.last}`;
   document.getElementById('typeaheadDrop').style.display='none';
+}
+
+function deletePatient(phone){
+  if(!confirm('Delete this patient and all their appointment records? This cannot be undone.'))return;
+  const key=phone.replace(/\D/g,'');
+  saveData('eo_patients',loadData('eo_patients',[]).filter(p=>p.phone.replace(/\D/g,'')!==key));
+  saveData('eo_appointments',loadData('eo_appointments',[]).filter(a=>a.phone.replace(/\D/g,'')!==key));
+  runPatientSearch();
+  renderAllPatients();
+  renderAdminCal();
 }
 
 function prefillQuickBook(phone){
