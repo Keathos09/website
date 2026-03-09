@@ -2219,7 +2219,7 @@ footer {
         </div>
         <button class="lens-read-more" onclick="toggleLensDetail(this)">Read More ↓</button>
         <div class="lens-detail-extra">
-          <p>Available in glass and a variety of plastic materials including standard plastic (CR-39), polycarbonate, trivex, and high-index plastics. Ask our optometrist which material is best suited to your prescription and lifestyle. Coatings such as anti-reflective, scratch-resistant, and UV protection can be applied to most lens types.</p>
+          <p>Available in a variety of plastic materials including standard plastic (CR-39), polycarbonate, trivex, and high-index plastics. Ask our optometrist which material is best suited to your prescription and lifestyle. Coatings such as anti-reflective, scratch-resistant, and UV protection can be applied to most lens types.</p>
         </div>
       </div>
     </div>
@@ -2276,10 +2276,10 @@ footer {
       <div class="lens-content">
         <div class="lens-cat-badge">Specialty</div>
         <h3 class="lens-name">Progressive Lenses</h3>
-        <p class="lens-desc">Instead of having just two or three lens powers like bifocals or trifocals, progressive lenses are true "multifocal" lenses that provide a seamless progression of many lens powers for all viewing distances. With progressive lenses, you can look up to see clearly across the room and in the distance. You can look ahead to view your computer in the intermediate zone and drop your gaze downward to read and do close work comfortably through the near zone of the lens.</p>
+        <p class="lens-desc">Progressive lenses provide a seamless graduation of lens powers from distance at the top, through intermediate in the middle, to near at the bottom — all within a single lens and with no visible lines. Unlike bifocals or trifocals, the power changes gradually, allowing your eyes to transition naturally between viewing distances without jumping between distinct zones.</p>
         <div class="lens-features">
           <span class="lens-feat">No Visible Lines</span>
-          <span class="lens-feat">3 Zones in 1</span>
+          <span class="lens-feat">Seamless Graduation</span>
           <span class="lens-feat">Natural Vision</span>
         </div>
         <button class="lens-read-more" onclick="toggleLensDetail(this)">Read More ↓</button>
@@ -3418,7 +3418,7 @@ function toggleMenu() {
 
     <!-- ══ ASSIGN DOCTOR ══ -->
     <div class="admin-panel" id="panel-adddoc">
-      <div class="admin-card" style="max-width:520px;">
+      <div class="admin-card" style="max-width:580px;margin-bottom:20px;">
         <div class="admin-card-title">Assign Doctor to a Day</div>
         <div class="admin-form-grid">
           <div class="admin-form-group"><label>Doctor's Name</label><input type="text" id="dName" placeholder="Dr. Williams"></div>
@@ -3432,6 +3432,28 @@ function toggleMenu() {
           <button class="admin-btn" onclick="adminAddDoctor()">Save</button>
           <span id="adminDoctorMsg" style="margin-left:16px;font-size:13px;color:var(--orange);display:none;"></span>
         </div>
+      </div>
+
+      <div class="admin-card" style="max-width:580px;">
+        <div class="admin-card-title">Appointment Time Overrides</div>
+        <p style="font-size:13px;color:var(--mid);margin-bottom:20px;">Override the first and last appointment slot for a specific branch and date — useful when the doctor arrives late or leaves early.</p>
+        <div class="admin-form-grid">
+          <div class="admin-form-group"><label>Branch</label>
+            <select id="ovBranch" onchange="updateOverrideDefaults()">
+              <option value="sheraton">Sheraton Mall</option>
+              <option value="cave">Cave Shepherd</option>
+            </select>
+          </div>
+          <div class="admin-form-group"><label>Date</label><input type="date" id="ovDate" onchange="updateOverrideDefaults()"></div>
+          <div class="admin-form-group"><label>First Slot</label><input type="time" id="ovStart" step="1800"></div>
+          <div class="admin-form-group"><label>Last Slot</label><input type="time" id="ovEnd" step="1800"></div>
+        </div>
+        <div style="margin-top:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <button class="admin-btn" onclick="saveOverride()">Save Override</button>
+          <button class="admin-btn admin-btn-sm admin-btn-danger" onclick="clearOverride()">Clear Override</button>
+          <span id="ovMsg" style="font-size:13px;color:var(--orange);display:none;"></span>
+        </div>
+        <div id="ovCurrentList" style="margin-top:20px;"></div>
       </div>
     </div>
 
@@ -3453,16 +3475,90 @@ const BRANCHES={
   cave:    {name:'Cave Shepherd / Duty Free Caribbean',start:'08:30',end:'13:30',interval:30,exclude:['12:00']}
 };
 
-function generateSlots(branch){
-  const c=BRANCHES[branch],slots=[];
-  let[h,m]=c.start.split(':').map(Number);
-  const[eh,em]=c.end.split(':').map(Number);
+function getOverride(branch,date){
+  const overrides=loadData('eo_overrides',[]);
+  return overrides.find(o=>o.branch===branch&&o.date===date)||null;
+}
+
+function generateSlots(branch,date){
+  const c=BRANCHES[branch];
+  const ov=date?getOverride(branch,date):null;
+  const start=ov?.start||c.start;
+  const end=  ov?.end  ||c.end;
+  const slots=[];
+  let[h,m]=start.split(':').map(Number);
+  const[eh,em]=end.split(':').map(Number);
   while(h*60+m<=eh*60+em){
     const key=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
     if(!c.exclude.includes(key))slots.push(key);
     m+=c.interval; if(m>=60){h++;m-=60;}
   }
   return slots;
+}
+
+/* Override helpers */
+function updateOverrideDefaults(){
+  const branch=document.getElementById('ovBranch')?.value||'sheraton';
+  const date=  document.getElementById('ovDate')?.value||'';
+  if(!date)return;
+  const ov=getOverride(branch,date);
+  document.getElementById('ovStart').value=ov?.start||BRANCHES[branch].start;
+  document.getElementById('ovEnd').value=  ov?.end  ||BRANCHES[branch].end;
+  renderOverrideList();
+}
+
+function saveOverride(){
+  const branch=document.getElementById('ovBranch').value;
+  const date=  document.getElementById('ovDate').value;
+  const start= document.getElementById('ovStart').value;
+  const end=   document.getElementById('ovEnd').value;
+  if(!date||!start||!end){alert('Please fill in all fields.');return;}
+  if(start>=end){alert('First slot must be before the last slot.');return;}
+  const overrides=loadData('eo_overrides',[]);
+  const i=overrides.findIndex(o=>o.branch===branch&&o.date===date);
+  if(i>=0)overrides[i]={branch,date,start,end};
+  else overrides.push({branch,date,start,end});
+  saveData('eo_overrides',overrides);
+  const msg=document.getElementById('ovMsg');
+  msg.textContent='✓ Override saved!'; msg.style.display='inline';
+  setTimeout(()=>msg.style.display='none',2500);
+  renderOverrideList();
+  renderAdminCal();
+}
+
+function clearOverride(){
+  const branch=document.getElementById('ovBranch').value;
+  const date=  document.getElementById('ovDate').value;
+  if(!date){alert('Please select a date first.');return;}
+  const overrides=loadData('eo_overrides',[]).filter(o=>!(o.branch===branch&&o.date===date));
+  saveData('eo_overrides',overrides);
+  updateOverrideDefaults();
+  const msg=document.getElementById('ovMsg');
+  msg.textContent='Override cleared.'; msg.style.display='inline';
+  setTimeout(()=>msg.style.display='none',2500);
+  renderAdminCal();
+}
+
+function renderOverrideList(){
+  const cont=document.getElementById('ovCurrentList');
+  if(!cont)return;
+  const overrides=loadData('eo_overrides',[]).sort((a,b)=>a.date.localeCompare(b.date));
+  if(!overrides.length){cont.innerHTML='';return;}
+  cont.innerHTML=`<div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--orange);font-weight:500;margin-bottom:10px;">Active Overrides</div>`+
+    overrides.map((o,i)=>`
+      <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border-light);font-size:13px;">
+        <div style="flex:1;"><strong>${fmtShort(o.date)}</strong> · ${o.branch==='sheraton'?'Sheraton':'Cave Shepherd'}</div>
+        <div style="color:var(--mid);">${fmtTime(o.start)} – ${fmtTime(o.end)}</div>
+        <button class="admin-btn admin-btn-sm admin-btn-danger" onclick="deleteOverride(${i})">✕</button>
+      </div>`).join('');
+}
+
+function deleteOverride(i){
+  const overrides=loadData('eo_overrides',[]).sort((a,b)=>a.date.localeCompare(b.date));
+  overrides.splice(i,1);
+  saveData('eo_overrides',overrides);
+  renderOverrideList();
+  renderAdminCal();
 }
 
 function fmtTime(t){
@@ -3539,7 +3635,8 @@ function renderCal(){
     if(ds<ts){el.classList.add('cal-past');}
     else if(dow===0){el.classList.add('cal-past');el.title='Closed Sundays';}
     else{
-      const slots=generateSlots(bk.branch);
+      const ds2=dateKey(bk.year,bk.month,d);
+    const slots=generateSlots(bk.branch,ds2);
       const booked=appts.filter(a=>a.branch===bk.branch&&a.date===ds).map(a=>a.time);
       if(booked.length>=slots.length)el.classList.add('cal-full');
       else if(booked.length>0)el.classList.add('cal-has-slots');
@@ -3574,7 +3671,7 @@ function renderSlots(){
   }
   const grid=document.getElementById('slotsGrid');
   grid.innerHTML='';
-  generateSlots(bk.branch).forEach(s=>{
+  generateSlots(bk.branch,dateKey(bk.year,bk.month,bk.day)).forEach(s=>{
     const btn=document.createElement('button'); btn.className='slot-btn';
     const ib=booked.includes(s);
     if(ib)btn.classList.add('slot-booked');
@@ -3600,8 +3697,14 @@ function confirmBooking(){
   const email=document.getElementById('bookEmail').value.trim();
   const reason=document.getElementById('bookReason').value;
   if(!first||!last||!phone||!reason){alert('Please fill in all required fields.');return;}
+  const digits=phone.replace(/\D/g,'');
+  if(digits.length<7||digits.length>15){alert('Please enter a valid phone number (7–15 digits).');return;}
   const ds=dateKey(bk.year,bk.month,bk.day);
   const appts=loadData('eo_appointments',[]);
+  if(appts.find(a=>a.branch===bk.branch&&a.date===ds&&a.time===bk.slot)){
+    alert('Sorry, that slot was just taken. Please go back and choose another time.');
+    renderSlots(); return;
+  }
   appts.push({id:Date.now(),branch:bk.branch,date:ds,time:bk.slot,first,last,phone,email,reason,notes:'',status:'booked',source:'online'});
   saveData('eo_appointments',appts);
   upsertPatient({first,last,phone,email});
@@ -3665,6 +3768,7 @@ function switchAdminTab(name,btn){
   if(name==='cal')     renderAdminCal();
   if(name==='patients')renderAllPatients();
   if(name==='doctors') renderRoster();
+  if(name==='adddoc')   { renderOverrideList(); const today=new Date().toISOString().split('T')[0]; if(document.getElementById('ovDate').value==='')document.getElementById('ovDate').value=today; updateOverrideDefaults(); }
   if(name==='add')     updateAdminTimeSlots();
 }
 
@@ -3936,18 +4040,18 @@ function updateAdminTimeSlots(){
   }
   const booked=loadData('eo_appointments',[]).filter(a=>a.branch===branch&&a.date===date).map(a=>a.time);
   sel.innerHTML='';
-  generateSlots(branch).forEach(s=>{
+  generateSlots(branch,date).forEach(s=>{
     const o=document.createElement('option');
     o.value=s; o.textContent=fmtTime(s)+(booked.includes(s)?' — Booked':'');
     if(booked.includes(s))o.disabled=true;
     sel.appendChild(o);
   });
   // Show free slots sidebar
-  const free=generateSlots(branch).filter(s=>!booked.includes(s));
+  const free=generateSlots(branch,date).filter(s=>!booked.includes(s));
   if(!prev)return;
   if(!date){prev.innerHTML='<span style="color:var(--mid);">Choose a date above.</span>';return;}
   if(!free.length){prev.innerHTML='<span style="color:#c00;">Fully booked on this date.</span>';return;}
-  prev.innerHTML=`<p style="font-size:12px;color:var(--mid);margin-bottom:10px;">${free.length} of ${generateSlots(branch).length} slots free</p>`+
+  prev.innerHTML=`<p style="font-size:12px;color:var(--mid);margin-bottom:10px;">${free.length} of ${generateSlots(branch,date).length} slots free</p>`+
     free.map(s=>`<div style="display:inline-block;background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:5px 11px;margin:3px;font-size:12px;">${fmtTime(s)}</div>`).join('');
 }
 
@@ -3962,6 +4066,8 @@ function adminAddAppt(){
   const reason=document.getElementById('aReason').value;
   const notes= document.getElementById('aNotes').value.trim();
   if(!first||!last||!phone||!date||!time){alert('Please fill in all required fields.');return;}
+  const digits=phone.replace(/\D/g,'');
+  if(digits.length<7||digits.length>15){alert('Please enter a valid phone number (7–15 digits).');return;}
   const appts=loadData('eo_appointments',[]);
   if(appts.find(a=>a.branch===branch&&a.date===date&&a.time===time)){alert('That slot is already booked.');return;}
   appts.push({id:Date.now(),branch,date,time,first,last,phone,email,reason,notes,status:'booked',source:'admin'});
@@ -4079,6 +4185,13 @@ function adminAddDoctor(){
   const note=  document.getElementById('dNote').value.trim();
   if(!name||!date){alert('Please enter the doctor name and date.');return;}
   const doctors=loadData('eo_doctors',[]);
+  // Check if same doctor is already assigned to the OTHER branch on the same date
+  const otherBranch=branch==='sheraton'?'cave':'sheraton';
+  const otherBranchLabel=otherBranch==='sheraton'?'Sheraton Mall':'Cave Shepherd';
+  const clash=doctors.find(d=>d.date===date&&d.branch===otherBranch&&d.name.toLowerCase()===name.toLowerCase());
+  if(clash){
+    if(!confirm(`⚠️ ${name} is already assigned to ${otherBranchLabel} on this date. Are you sure you want to assign them to both branches?`))return;
+  }
   const i=doctors.findIndex(d=>d.branch===branch&&d.date===date);
   if(i>=0)doctors[i]={name,branch,date,note};
   else doctors.push({name,branch,date,note});
