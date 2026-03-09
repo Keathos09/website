@@ -2544,11 +2544,11 @@ footer {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">First Name</label>
-          <input type="text" class="form-input" placeholder="Jane">
+          <input type="text" class="form-input" placeholder="Jane" oninput="this.value=this.value.replace(/[^a-zA-Z\s'\-\.]/g,'')">
         </div>
         <div class="form-group">
           <label class="form-label">Last Name</label>
-          <input type="text" class="form-input" placeholder="Smith">
+          <input type="text" class="form-input" placeholder="Smith" oninput="this.value=this.value.replace(/[^a-zA-Z\s'\-\.]/g,'')">
         </div>
       </div>
       <div class="form-group">
@@ -2557,7 +2557,7 @@ footer {
       </div>
       <div class="form-group">
         <label class="form-label">Phone Number</label>
-        <input type="tel" class="form-input" placeholder="+1 (246) 000-0000">
+        <input type="tel" class="form-input" placeholder="+1 (246) 000-0000" oninput="this.value=this.value.replace(/[^0-9+\(\)\s\-]/g,'')">
       </div>
       <div class="form-group">
         <label class="form-label">I'm Interested In</label>
